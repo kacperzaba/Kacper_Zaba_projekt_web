@@ -1,0 +1,70 @@
+﻿@page "/currency"
+@using System.Net.Http
+@using System.Net.Http.Json
+@using System.Globalization
+@rendermode InteractiveServer
+
+<PageTitle>Kursy Walut</PageTitle>
+
+<h3>Kursy walut z NBP</h3>
+
+@if (exchangeRates is null)
+{
+    <p>Ładowanie danych...</p>
+}
+else
+{
+    <div>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Flaga</th>
+                    <th>Waluta</th>
+                    <th>Kod</th>
+                    <th>Kurs (PLN)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var rate in exchangeRates.Rates)  
+                {
+                    <tr>
+                        <td>
+                            <img src="@GetFlagUrl(rate.Code)"
+                                 alt="@rate.Code"
+                                 width="32" height="24">
+                        </td>
+                        <td>@rate.Currency</td>
+                        <td>@rate.Code</td>
+                        <td>@rate.Mid.ToString("N2")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private ExchangeRatesResponse? exchangeRates;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var httpClient = new HttpClient();
+            var apiUrl = "https://api.nbp.pl/api/exchangerates/tables/A/?format=json";
+            var response = await httpClient.GetFromJsonAsync<List<ExchangeRatesResponse>>(apiUrl);
+            exchangeRates = response?.FirstOrDefault();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Błąd podczas pobierania danych: {ex.Message}");
+        }
+    }
+
+    private string GetFlagUrl(string currencyCode)
+    {
+        string countryCode = currencyCode.Substring(0, 2).ToLower();
+
+        return $"https://flagcdn.com/w40/{countryCode}.png"; 
+    }
+}

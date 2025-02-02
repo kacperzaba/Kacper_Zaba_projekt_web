@@ -1,0 +1,90 @@
+﻿@page "/chat"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using GroqApiLibrary;
+@using System.Text.Json.Nodes;
+
+@attribute [Authorize]
+
+<PageTitle>Chat</PageTitle>
+
+<AuthorizeView>
+
+    <div class="file-drop-zone @HoverClass" @ondragenter="onDragEnter" @ondragleave="onDragLeave" @ondragover="onDragEnter">
+        <InputFile multiple OnChange="@onChange" />
+    </div>
+
+    <div class="image-container">
+        @foreach (var imageSource in imageSources)
+        {
+            <img src="@imageSource" />
+        }
+    </div>
+
+    <h3>Opisz obraz</h3>
+    <button class="btn btn-primary" type="button" @onclick="AskChatWithImage">Zapytaj chat</button>
+    <p>@answerWithImage</p>
+
+    @code {
+        private const int maxAllowedSize = 2 * 1024 * 1024;
+        private List<string> imageSources = new List<string>();
+        private string HoverClass = string.Empty;
+
+        private string? answerWithImage;
+        private static string apiKey = "API_KEY";
+        private GroqApiClient groqApi = new GroqApiClient(apiKey);
+        private string image = string.Empty;
+
+        void onDragEnter(DragEventArgs eventArgs) => HoverClass = "hover";
+        void onDragLeave(DragEventArgs eventArgs) => HoverClass = string.Empty;
+
+        async Task onChange(InputFileChangeEventArgs e)
+        {
+        foreach (var file in e.GetMultipleFiles())
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            var base64Image = $"data:{file.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}";
+            imageSources.Add(base64Image);
+            image = base64Image; 
+        }
+        }
+
+    private async Task AskChatWithImage()
+    {
+        var request = new JsonObject
+        {
+            ["model"] = "llama-3.2-90b-vision-preview",
+            ["messages"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["role"] = "user",
+                    ["content"] = new JsonArray
+                    {
+                        new JsonObject
+                        {
+                            ["type"] = "text",
+                            ["text"] = "What is in this image?"
+                        },
+                        new JsonObject
+                        {
+                            ["type"] = "image_url",
+                            ["image_url"] = new JsonObject
+                            {
+                                ["url"] = image
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+
+        Console.WriteLine(request);
+        var result = await groqApi.CreateChatCompletionAsync(request);
+        answerWithImage = result?["choices"]?[0]?["message"]?["content"]?.ToString();
+        }
+    }
+</AuthorizeView>

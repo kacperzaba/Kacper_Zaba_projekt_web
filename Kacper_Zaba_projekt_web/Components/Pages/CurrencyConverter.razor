@@ -1,0 +1,84 @@
+﻿@page "/currency-converter"
+@using System.Net.Http
+@using System.Net.Http.Json
+@using System.Globalization
+@rendermode InteractiveServer
+
+<PageTitle>Przelicznik Walut</PageTitle>
+
+<h3>Przelicznik Walut NBP</h3>
+
+@if (exchangeRates is null)
+{
+    <p>Ładowanie danych...</p>
+}
+else
+{
+    <div class="converter-container">
+        <div class="converter-form">
+            <label>Wybierz walutę źródłową:</label>
+            <select class="form-control" @bind="SourceCurrency">
+                <option value="PLN">Polski Złoty (PLN)</option>
+                @foreach (var rate in exchangeRates.Rates)
+                {
+                    <option value="@rate.Code">@rate.Currency (@rate.Code)</option>
+                }
+            </select>
+
+            <label>Wybierz walutę docelową:</label>
+            <select class="form-control" @bind="TargetCurrency">
+                <option value="PLN">Polski Złoty (PLN)</option> 
+                @foreach (var rate in exchangeRates.Rates)
+                {
+                    <option value="@rate.Code">@rate.Currency (@rate.Code)</option>
+                }
+            </select>
+
+            <label>Wpisz kwotę:</label>
+            <input type="number" class="form-control" @bind="Amount" min="0" step="0.01" />
+
+            <button class="btn btn-primary mt-2" @onclick="ConvertCurrency">Przelicz</button>
+        </div>
+
+        @if (ConvertedAmount != null)
+        {
+            <div class="conversion-result">
+                <h4>Wynik:</h4>
+                <p>@Amount.ToString("N2") @SourceCurrency = @ConvertedAmount.Value.ToString("N2") @TargetCurrency</p>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private ExchangeRatesResponse? exchangeRates;
+    private string SourceCurrency = "USD";
+    private string TargetCurrency = "PLN";
+    private decimal Amount = 1;
+    private decimal? ConvertedAmount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var httpClient = new HttpClient();
+            var apiUrl = "https://api.nbp.pl/api/exchangerates/tables/A/?format=json";
+            var response = await httpClient.GetFromJsonAsync<List<ExchangeRatesResponse>>(apiUrl);
+            exchangeRates = response?.FirstOrDefault();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Błąd podczas pobierania danych: {ex.Message}");
+        }
+    }
+
+    private void ConvertCurrency()
+    {
+        if (exchangeRates == null || exchangeRates.Rates == null) return;
+        decimal sourceRate = SourceCurrency == "PLN" ? 1 : exchangeRates.Rates.FirstOrDefault(r => r.Code == SourceCurrency)?.Mid ?? 1;
+        decimal targetRate = TargetCurrency == "PLN" ? 1 : exchangeRates.Rates.FirstOrDefault(r => r.Code == TargetCurrency)?.Mid ?? 1;
+
+        ConvertedAmount = (Amount * sourceRate) / targetRate;
+    }
+
+}
